@@ -169,13 +169,19 @@ app.post(
       });
     }
 
-    try {
+        try {
+      console.log("[POST] Paso 1: obteniendo conexión SQL");
+
       const pool = await getPool();
+
+      console.log("[POST] Paso 2: conexión obtenida");
 
       const contenido = JSON.stringify(req.body);
       const nombreArchivo = String(
         req.get("x-filename") || "asignaciones.json"
       ).slice(0, 255);
+
+      console.log("[POST] Paso 3: ejecutando procedimiento");
 
       const result = await pool.request()
         .input("NombreArchivo", sql.NVarChar(255), nombreArchivo)
@@ -188,22 +194,23 @@ app.post(
         )
         .execute("dbo.GuardarAsignacionJSON");
 
-      res.status(201).json({
+      console.log("[POST] Paso 4: guardado correcto");
+
+      return res.status(201).json({
         mensaje: "JSON validado y almacenado.",
         id: result.recordset?.[0]?.IdRegistro
       });
+
     } catch (err) {
-      console.error("DIAGNOSTICO_SQL", {
+      console.error("[POST ERROR]", {
         code: err.code,
         message: err.message,
-        name: err.name,
         originalCode: err.originalError?.code,
-        originalMessage: err.originalError?.message,
-        stack: err.stack
+        originalMessage: err.originalError?.message
       });
 
-      res.status(503).json({
-        estado: "sin conexión a SQL Server",
+      return res.status(500).json({
+        error: "Error al procesar el JSON",
         codigo: err.code || err.name
       });
     }
