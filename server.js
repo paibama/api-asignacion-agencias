@@ -157,65 +157,64 @@ app.get("/health", async (req, res) => {
   }
 });
 
-app.post(
-  "/api/v1/asignaciones",
-  async (req, res) => {
-    const resultado = validarAsignaciones(req.body);
 
-    if (!resultado.valido) {
-      return res.status(422).json({
-        error: "JSON con estructura incorrecta.",
-        detalles: resultado.errores
-      });
-    }
+app.post("/api/v1/asignaciones", async (req, res) => {
+  const resultado = validarAsignaciones(req.body);
 
-        try {
-      console.log("[POST] Paso 1: obteniendo conexión SQL");
-
-      const pool = await getPool();
-
-      console.log("[POST] Paso 2: conexión obtenida");
-
-      const contenido = JSON.stringify(req.body);
-      const nombreArchivo = String(
-        req.get("x-filename") || "asignaciones.json"
-      ).slice(0, 255);
-
-      console.log("[POST] Paso 3: ejecutando procedimiento");
-
-      const result = await pool.request()
-        .input("NombreArchivo", sql.NVarChar(255), nombreArchivo)
-        .input("ContenidoJSON", sql.NVarChar(sql.MAX), contenido)
-        .input("Valido", sql.Bit, true)
-        .input(
-          "Mensaje",
-          sql.NVarChar(1000),
-          "Validación de estructura correcta."
-        )
-        .execute("dbo.GuardarAsignacionJSON");
-
-      console.log("[POST] Paso 4: guardado correcto");
-
-      return res.status(201).json({
-        mensaje: "JSON validado y almacenado.",
-        id: result.recordset?.[0]?.IdRegistro
-      });
-
-    } catch (err) {
-      console.error("[POST ERROR]", {
-        code: err.code,
-        message: err.message,
-        originalCode: err.originalError?.code,
-        originalMessage: err.originalError?.message
-      });
-
-      return res.status(500).json({
-        error: "Error al procesar el JSON",
-        codigo: err.code || err.name
-      });
-    }
+  if (!resultado.valido) {
+    return res.status(422).json({
+      error: "JSON con estructura incorrecta.",
+      detalles: resultado.errores
+    });
   }
-);
+
+  try {
+    console.log("[POST] Paso 1: obteniendo conexión SQL");
+
+    const pool = await getPool();
+
+    console.log("[POST] Paso 2: conexión obtenida");
+
+    const contenido = JSON.stringify(req.body);
+    const nombreArchivo = String(
+      req.get("x-filename") || "asignaciones.json"
+    ).slice(0, 255);
+
+    console.log("[POST] Paso 3: ejecutando GuardarAsignacionJSON");
+
+    const result = await pool.request()
+      .input("NombreArchivo", sql.NVarChar(255), nombreArchivo)
+      .input("ContenidoJSON", sql.NVarChar(sql.MAX), contenido)
+      .input("Valido", sql.Bit, true)
+      .input(
+        "Mensaje",
+        sql.NVarChar(1000),
+        "Validación de estructura correcta."
+      )
+      .execute("dbo.GuardarAsignacionJSON");
+
+    console.log("[POST] Paso 4: guardado correcto");
+
+    return res.status(201).json({
+      mensaje: "JSON validado y almacenado.",
+      id: result.recordset?.[0]?.IdRegistro
+    });
+
+  } catch (err) {
+    console.error("[POST ERROR]", {
+      code: err.code,
+      message: err.message,
+      originalCode: err.originalError?.code,
+      originalMessage: err.originalError?.message
+    });
+
+    return res.status(500).json({
+      error: "Error al procesar el JSON",
+      codigo: err.code || err.name
+    });
+  }
+});
+
 
 const port = Number(process.env.PORT || 3000);
 
