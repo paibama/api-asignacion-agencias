@@ -120,6 +120,7 @@ app.get("/", (req, res) => {
   });
 });
 
+
 app.get("/health", async (req, res) => {
   try {
     const pool = await getPool();
@@ -133,28 +134,23 @@ app.get("/health", async (req, res) => {
       baseDatos: result.recordset[0].baseDatos,
       versionSQL: result.recordset[0].versionSQL
     });
-      } catch (err) {
-      console.error("DIAGNOSTICO_SQL", {
-        code: err.code,
-        message: err.message,
-        name: err.name,
-        originalCode: err.originalError?.code,
-        originalMessage: err.originalError?.message,
-        stack: err.stack
-      });
+  } catch (err) {
+    console.error("DIAGNOSTICO_SQL", {
+      code: err.code,
+      message: err.message,
+      name: err.name,
+      originalCode: err.originalError?.code,
+      originalMessage: err.originalError?.message,
+      stack: err.stack
+    });
 
-      res.status(503).json({
-        estado: "sin conexión a SQL Server",
-        codigo: err.code || err.name
-      });
+    res.status(503).json({
+      estado: "sin conexión a SQL Server",
+      codigo: err.code || err.name
+    });
   }
 });
 
-const port = Number(process.env.PORT || 3000);
-
-app.listen(port, "0.0.0.0", () => {
-  console.log(`API iniciada en puerto ${port}`);
-});
 app.post(
   "/api/v1/asignaciones",
   autenticar,
@@ -172,9 +168,9 @@ app.post(
       const pool = await getPool();
 
       const contenido = JSON.stringify(req.body);
-      const nombreArchivo =
-        String(req.get("x-filename") || "asignaciones.json")
-          .slice(0, 255);
+      const nombreArchivo = String(
+        req.get("x-filename") || "asignaciones.json"
+      ).slice(0, 255);
 
       const result = await pool.request()
         .input("NombreArchivo", sql.NVarChar(255), nombreArchivo)
@@ -192,20 +188,22 @@ app.post(
         id: result.recordset?.[0]?.IdRegistro
       });
     } catch (err) {
-  console.error("DIAGNOSTICO_SQL", {
-    code: err.code,
-    message: err.message,
-    name: err.name,
-    originalCode: err.originalError?.code,
-    originalMessage: err.originalError?.message,
-    stack: err.stack
-  });
+      console.error("DIAGNOSTICO_SQL", {
+        code: err.code,
+        message: err.message,
+        name: err.name,
+        originalCode: err.originalError?.code,
+        originalMessage: err.originalError?.message,
+        stack: err.stack
+      });
 
-  res.status(503).json({
-    estado: "sin conexión a SQL Server",
-    codigo: err.code || err.name
-  });
-}
+      res.status(503).json({
+        estado: "sin conexión a SQL Server",
+        codigo: err.code || err.name
+      });
+    }
+  }
+);
 
 const port = Number(process.env.PORT || 3000);
 
