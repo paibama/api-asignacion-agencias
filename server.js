@@ -44,8 +44,17 @@ function getPool() {
 
 function autenticar(req, res, next) {
   const apiKey = process.env.API_KEY;
+  const recibida = req.headers["x-api-key"];
 
-  if (!apiKey || req.get("x-api-key") !== apiKey) {
+  // DIAGNOSTICO TEMPORAL
+  console.log("DIAGNOSTICO_AUTENTICACION", {
+    variableConfigurada: Boolean(apiKey),
+    encabezadoRecibido: Boolean(recibida),
+    coincide: Boolean(apiKey) && recibida === apiKey
+  });
+
+  // VALIDACION DE LA CLAVE
+  if (!apiKey || !recibida || recibida !== apiKey) {
     return res.status(401).json({
       error: "No autorizado."
     });
@@ -53,6 +62,7 @@ function autenticar(req, res, next) {
 
   next();
 }
+
 
 function validarAsignaciones(data) {
   const errores = [];
