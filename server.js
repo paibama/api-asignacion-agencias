@@ -131,6 +131,7 @@ app.get("/", (req, res) => {
 app.get("/health", async (req, res) => {
   try {
     const pool = await getPool();
+    console.log("[POST] Conexión obtenida; usuario:", process.env.DB_USER);
 
     const result = await pool.request().query(
       "SELECT @@VERSION AS versionSQL, DB_NAME() AS baseDatos"
@@ -142,14 +143,12 @@ app.get("/health", async (req, res) => {
       versionSQL: result.recordset[0].versionSQL
     });
   } catch (err) {
-    console.error("DIAGNOSTICO_SQL", {
-      code: err.code,
-      message: err.message,
-      name: err.name,
-      originalCode: err.originalError?.code,
-      originalMessage: err.originalError?.message,
-      stack: err.stack
-    });
+    console.error("[POST SQL]", {
+  code: err.code,
+  message: err.message,
+  originalCode: err.originalError?.code,
+  originalMessage: err.originalError?.message
+});
 
     res.status(503).json({
       estado: "sin conexión a SQL Server",
