@@ -63,8 +63,6 @@ function autenticar(req, res, next) {
   next();
 }
 
-
-
 function validarAsignaciones(datos) {
   const errores = [];
 
@@ -115,13 +113,6 @@ function validarAsignaciones(datos) {
       errores.push(`${prefijo}: direccion debe ser un arreglo.`);
     }
   });
-
-  return {
-    valido: errores.length === 0,
-    errores
-  };
-}
-
 
   return {
     valido: errores.length === 0,
