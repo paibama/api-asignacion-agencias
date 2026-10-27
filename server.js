@@ -17,7 +17,7 @@ const config = {
 
   options: {
     encrypt: true,
-    trustServerCertificate: false
+    
   },
 
   pool: {
