@@ -11,13 +11,15 @@ const config = {
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
+
   connectionTimeout: 15000,
   requestTimeout: 30000,
+
   options: {
-    encrypt: process.env.DB_ENCRYPT !== "false",
-    trustServerCertificate:
-      process.env.DB_TRUST_CERT === "true"
+    encrypt: true,
+    trustServerCertificate: false
   },
+
   pool: {
     max: 5,
     min: 0,
