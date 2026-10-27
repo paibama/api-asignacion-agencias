@@ -147,9 +147,8 @@ app.get("/health", async (req, res) => {
         estado: "sin conexión a SQL Server",
         codigo: err.code || err.name
       });
-    }
   }
-);
+});
 
 const port = Number(process.env.PORT || 3000);
 
