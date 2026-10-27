@@ -64,59 +64,64 @@ function autenticar(req, res, next) {
 }
 
 
-function validarAsignaciones(data) {
+
+function validarAsignaciones(datos) {
   const errores = [];
 
-  if (!Array.isArray(data)) {
+  if (!Array.isArray(datos)) {
     return {
       valido: false,
       errores: ["La raíz del JSON debe ser un arreglo."]
     };
   }
 
-  if (data.length === 0) {
-    errores.push("El arreglo no debe estar vacío.");
+  if (datos.length === 0) {
+    errores.push("El arreglo debe contener al menos una asignación.");
   }
 
-  if (data.length > 500) {
-    errores.push("Máximo 500 registros por solicitud.");
-  }
+  datos.forEach((item, i) => {
+    const prefijo = `Registro ${i + 1}`;
 
-  data.forEach((r, i) => {
-    if (!r || typeof r !== "object" || Array.isArray(r)) {
-      errores.push(`Registro ${i}: debe ser un objeto.`);
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      errores.push(`${prefijo}: debe ser un objeto.`);
       return;
     }
 
-    if (!r.cliente || typeof r.cliente !== "object" ||
-        Array.isArray(r.cliente)) {
-      errores.push(`Registro ${i}: cliente debe ser un objeto.`);
-    } else if (typeof r.cliente.numero !== "string" ||
-               !r.cliente.numero.trim()) {
-      errores.push(`Registro ${i}: falta cliente.numero.`);
-    }
-
-    for (const campo of ["contrato", "telefono", "direccion"]) {
-      if (!Array.isArray(r[campo])) {
-        errores.push(`Registro ${i}: ${campo} debe ser un arreglo.`);
+    if (!item.cliente || typeof item.cliente !== "object") {
+      errores.push(`${prefijo}: falta el objeto cliente.`);
+    } else {
+      if (!item.cliente.numero) {
+        errores.push(`${prefijo}: falta cliente.numero.`);
       }
     }
 
-    if (Array.isArray(r.contrato)) {
-      if (r.contrato.length === 0) {
-        errores.push(`Registro ${i}: debe incluir al menos un contrato.`);
-      }
-
-      r.contrato.forEach((c, j) => {
-        if (!c || typeof c.numeroContrato !== "string" ||
-            !c.numeroContrato.trim()) {
+    if (!Array.isArray(item.contrato) || item.contrato.length === 0) {
+      errores.push(`${prefijo}: contrato debe ser un arreglo con al menos un elemento.`);
+    } else {
+      item.contrato.forEach((contrato, j) => {
+        if (!contrato.numeroContrato) {
           errores.push(
-            `Registro ${i}, contrato ${j}: falta numeroContrato.`
+            `${prefijo}: falta numeroContrato en contrato ${j + 1}.`
           );
         }
       });
     }
+
+    if (!Array.isArray(item.telefono)) {
+      errores.push(`${prefijo}: telefono debe ser un arreglo.`);
+    }
+
+    if (!Array.isArray(item.direccion)) {
+      errores.push(`${prefijo}: direccion debe ser un arreglo.`);
+    }
   });
+
+  return {
+    valido: errores.length === 0,
+    errores
+  };
+}
+
 
   return {
     valido: errores.length === 0,
