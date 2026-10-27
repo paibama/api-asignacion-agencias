@@ -2,13 +2,13 @@
 {
   "name": "api-asignacion-agencias",
   "version": "1.0.0",
-  "description": "API de asignacion de agencias",
+  "description": "API para asignaciones de agencias con SQL Server 2014",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^5.1.0"
+    "express": "^5.1.0",
     "mssql": "^11.0.1"
   }
 }
