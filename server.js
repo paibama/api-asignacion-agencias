@@ -133,21 +133,28 @@ app.get("/health", async (req, res) => {
       baseDatos: result.recordset[0].baseDatos,
       versionSQL: result.recordset[0].versionSQL
     });
-  } catch (err) {
-    console.error("DIAGNOSTICO_SQL", {
-      code: err.code,
-      message: err.message,
-      name: err.name,
-      originalCode: err.originalError?.code,
-      originalMessage: err.originalError?.message,
-      stack: err.stack
-    });
+      } catch (err) {
+      console.error("DIAGNOSTICO_SQL", {
+        code: err.code,
+        message: err.message,
+        name: err.name,
+        originalCode: err.originalError?.code,
+        originalMessage: err.originalError?.message,
+        stack: err.stack
+      });
 
-    res.status(503).json({
-      estado: "sin conexión a SQL Server",
-      codigo: err.code || err.name
-    });
+      res.status(503).json({
+        estado: "sin conexión a SQL Server",
+        codigo: err.code || err.name
+      });
+    }
   }
+);
+
+const port = Number(process.env.PORT || 3000);
+
+app.listen(port, "0.0.0.0", () => {
+  console.log(`API iniciada en puerto ${port}`);
 });
 app.post(
   "/api/v1/asignaciones",
