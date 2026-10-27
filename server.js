@@ -164,7 +164,6 @@ app.get("/health", async (req, res) => {
 
 app.post(
   "/api/v1/asignaciones",
-  autenticar,
   async (req, res) => {
     const resultado = validarAsignaciones(req.body);
 
