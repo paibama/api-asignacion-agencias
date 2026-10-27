@@ -118,7 +118,7 @@ app.get("/", (req, res) => {
   });
 });
 
-app.get("/health", async (req, res) => {
+catch("/health", async (req, res) => {
   try {
     const pool = await getPool();
     const result = await pool.request().query(
