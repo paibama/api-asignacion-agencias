@@ -177,13 +177,20 @@ app.post(
         id: result.recordset?.[0]?.IdRegistro
       });
     } catch (err) {
-      console.error("Error al guardar:", err.code || err.name);
-      res.status(500).json({
-        error: "No fue posible almacenar el archivo."
-      });
-    }
-  }
-);
+  console.error("DIAGNOSTICO_SQL", {
+    code: err.code,
+    message: err.message,
+    name: err.name,
+    originalCode: err.originalError?.code,
+    originalMessage: err.originalError?.message,
+    stack: err.stack
+  });
+
+  res.status(503).json({
+    estado: "sin conexión a SQL Server",
+    codigo: err.code || err.name
+  });
+}
 
 const port = Number(process.env.PORT || 3000);
 
