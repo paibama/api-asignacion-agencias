@@ -1,4 +1,4 @@
-  
+|  
 const express = require("express");
 const sql = require("mssql");
 
@@ -206,15 +206,31 @@ app.post("/api/v1/asignaciones", async (req, res) => {
       mensaje: mensaje || "Archivo procesado correctamente"
     });
 
-  } catch (error) {
-    console.error("[ERROR ASIGNACIONES]", error.message);
+  
+} catch (error) {
+  console.error("[ERROR ASIGNACIONES]", {
+    message: error.message,
+    code: error.code,
+    number: error.number,
+    state: error.state,
+    class: error.class,
+    lineNumber: error.lineNumber,
+    procedure: error.procName,
+    originalError: error.originalError?.message,
+    precedingErrors: error.precedingErrors?.map(e => ({
+      message: e.message,
+      number: e.number,
+      state: e.state
+    }))
+  });
 
-    return res.status(500).json({
-      ok: false,
-      mensaje: "Error al procesar las asignaciones",
-      codigo: error.code || "INTERNAL_ERROR"
-    });
-  }
+  return res.status(500).json({
+    ok: false,
+    mensaje: "Error al procesar las asignaciones",
+    codigo: error.code || "INTERNAL_ERROR"
+  });
+}
+
 });
 
 // Manejo de JSON mal formado.
