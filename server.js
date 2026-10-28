@@ -1,4 +1,4 @@
-
+  
 const express = require("express");
 const sql = require("mssql");
 
@@ -158,7 +158,10 @@ app.get("/health", async (req, res) => {
 });
 
 
+
 app.post("/api/v1/asignaciones", async (req, res) => {
+  console.log("[POST] Solicitud recibida");
+
   const resultado = validarAsignaciones(req.body);
 
   if (!resultado.valido) {
@@ -180,7 +183,7 @@ app.post("/api/v1/asignaciones", async (req, res) => {
       req.get("x-filename") || "asignaciones.json"
     ).slice(0, 255);
 
-    console.log("[POST] Paso 3: ejecutando GuardarAsignacionJSON");
+    console.log("[POST] Paso 3: ejecutando procedimiento");
 
     const result = await pool.request()
       .input("NombreArchivo", sql.NVarChar(255), nombreArchivo)
