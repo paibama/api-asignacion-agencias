@@ -92,13 +92,13 @@ app.get("/health/db", async (req, res) => {
       mensaje: "Conexión a SQL Server correcta"
     });
   } catch (error) {
-    console.error("[HEALTH DB]", error.message);
-
-    return res.status(500).json({
-      ok: false,
-      mensaje: "Sin conexión a SQL Server",
-      codigo: error.code || "DB_ERROR"
-    });
+    console.error("[HEALTH DB]", {
+  message: error.message,
+  code: error.code,
+  originalError: error.originalError?.message,
+  server: process.env.DB_SERVER,
+  port: process.env.DB_PORT || 1433
+});
   }
 });
 
