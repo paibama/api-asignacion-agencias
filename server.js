@@ -190,6 +190,12 @@ app.post("/api/v1/asignaciones", async (req, res) => {
     );
 
     // Ejecutar procedimiento almacenado
+    
+    // Determinar el estado de validación inicial.
+    // El procedimiento actual solo almacena el contenido.
+    const valido = 1;
+    const mensaje = "JSON recibido y almacenado correctamente";
+
     const resultado = await pool
       .request()
       .input(
@@ -202,34 +208,37 @@ app.post("/api/v1/asignaciones", async (req, res) => {
         sql.NVarChar(sql.MAX),
         contenidoJSON
       )
-      .output(
+      .input(
         "Valido",
-        sql.Bit
+        sql.Bit,
+        valido
       )
-      .output(
+      .input(
         "Mensaje",
-        sql.NVarChar(1000)
+        sql.NVarChar(1000),
+        mensaje
       )
       .execute("dbo.GuardarAsignacionJSON");
 
-    const valido = resultado.output.Valido;
-    const mensaje = resultado.output.Mensaje;
+    const idRegistro =
+      resultado.recordset &&
+      resultado.recordset.length > 0
+        ? resultado.recordset[0].IdRegistro
+        : null;
 
-    console.log("[SQL] Procedimiento ejecutado", {
-      valido,
-      mensaje
+    console.log("[SQL] Registro almacenado", {
+      idRegistro,
+      registrosRecibidos: registros.length
     });
 
-    // Resultado de validación del procedimiento
-    if (valido !== true && valido !== 1) {
-      return res.status(422).json({
-        ok: false,
-        archivo: nombreArchivo,
-        registrosRecibidos: registros.length,
-        mensaje:
-          mensaje || "SQL Server rechazó el contenido"
-      });
-    }
+    return res.status(200).json({
+      ok: true,
+      idRegistro,
+      archivo: nombreArchivo,
+      registrosRecibidos: registros.length,
+      mensaje: "JSON almacenado correctamente"
+    });
+
 
     // Operación exitosa
     return res.status(200).json({
