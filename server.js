@@ -3,224 +3,242 @@ const express = require("express");
 const sql = require("mssql");
 
 const app = express();
-app.use(express.json({ limit: "10mb" }));
+const PORT = process.env.PORT || 3000;
 
-const config = {
+// Permite recibir archivos JSON grandes.
+app.use(express.json({ limit: "20mb" }));
+
+// Configuración de SQL Server mediante variables de entorno de Render.
+const dbConfig = {
   server: process.env.DB_SERVER,
   port: Number(process.env.DB_PORT || 1433),
-  database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME,
 
-  connectionTimeout: 15000,
-  requestTimeout: 30000,
-
-  options: {
-    encrypt: false,
-    trustServerCertificate: true
-    
-  },
-
+  connectionTimeout: 30000,
+  requestTimeout: 120000,
   pool: {
-    max: 5,
+    max: 10,
     min: 0,
     idleTimeoutMillis: 30000
+  },
+
+  options: {
+    encrypt: process.env.DB_ENCRYPT === "true",
+    trustServerCertificate: process.env.DB_TRUST_CERT === "true",
+    enableArithAbort: true
   }
 };
 
+// Pool de conexiones reutilizable.
 let poolPromise;
 
-function getPool() {
+function obtenerPool() {
   if (!poolPromise) {
-    poolPromise = new sql.ConnectionPool(config)
+    poolPromise = new sql.ConnectionPool(dbConfig)
       .connect()
-      .catch((err) => {
+      .catch((error) => {
         poolPromise = null;
-        throw err;
+        throw error;
       });
   }
+
   return poolPromise;
 }
 
-function autenticar(req, res, next) {
-  const apiKey = process.env.API_KEY;
-  const recibida = req.headers["x-api-key"];
+// Verifica que existan las variables esenciales.
+function validarConfiguracion() {
+  const requeridas = [
+    "DB_SERVER",
+    "DB_NAME",
+    "DB_USER",
+    "DB_PASSWORD",
+    "API_KEY"
+  ];
 
-  // DIAGNOSTICO TEMPORAL
-  console.log("DIAGNOSTICO_AUTENTICACION", {
-    variableConfigurada: Boolean(apiKey),
-    encabezadoRecibido: Boolean(recibida),
-    coincide: Boolean(apiKey) && recibida === apiKey
-  });
-
-  // VALIDACION DE LA CLAVE
-  if (!apiKey || !recibida || recibida !== apiKey) {
-    return res.status(401).json({
-      error: "No autorizado."
-    });
-  }
-
-  next();
+  return requeridas.filter(
+    (nombre) => !process.env[nombre]
+  );
 }
 
-function validarAsignaciones(datos) {
-  const errores = [];
-
-  if (!Array.isArray(datos)) {
-    return {
-      valido: false,
-      errores: ["La raíz del JSON debe ser un arreglo."]
-    };
-  }
-
-  if (datos.length === 0) {
-    errores.push("El arreglo debe contener al menos una asignación.");
-  }
-
-  datos.forEach((item, i) => {
-    const prefijo = `Registro ${i + 1}`;
-
-    if (!item || typeof item !== "object" || Array.isArray(item)) {
-      errores.push(`${prefijo}: debe ser un objeto.`);
-      return;
-    }
-
-    if (!item.cliente || typeof item.cliente !== "object") {
-      errores.push(`${prefijo}: falta el objeto cliente.`);
-    } else {
-      if (!item.cliente.numero) {
-        errores.push(`${prefijo}: falta cliente.numero.`);
-      }
-    }
-
-    if (!Array.isArray(item.contrato) || item.contrato.length === 0) {
-      errores.push(`${prefijo}: contrato debe ser un arreglo con al menos un elemento.`);
-    } else {
-      item.contrato.forEach((contrato, j) => {
-        if (!contrato.numeroContrato) {
-          errores.push(
-            `${prefijo}: falta numeroContrato en contrato ${j + 1}.`
-          );
-        }
-      });
-    }
-
-    if (!Array.isArray(item.telefono)) {
-      errores.push(`${prefijo}: telefono debe ser un arreglo.`);
-    }
-
-    if (!Array.isArray(item.direccion)) {
-      errores.push(`${prefijo}: direccion debe ser un arreglo.`);
-    }
-  });
-
-  return {
-    valido: errores.length === 0,
-    errores
-  };
-}
-
-app.get("/", (req, res) => {
-  res.json({
-    servicio: "API AsignacionAgencias",
+// Ruta de estado de la API.
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    ok: true,
+    servicio: "API de asignaciones",
     estado: "activo"
   });
 });
 
-
-app.get("/health", async (req, res) => {
+// Ruta para comprobar conexión con SQL Server.
+app.get("/health/db", async (req, res) => {
   try {
-    const pool = await getPool();
-    console.log("[POST] Conexión obtenida; usuario:", process.env.DB_USER);
+    const faltantes = validarConfiguracion();
 
-    const result = await pool.request().query(
-      "SELECT @@VERSION AS versionSQL, DB_NAME() AS baseDatos"
-    );
+    if (faltantes.length > 0) {
+      return res.status(500).json({
+        ok: false,
+        mensaje: "Faltan variables de entorno",
+        variables: faltantes
+      });
+    }
 
-    res.json({
-      estado: "conectado",
-      baseDatos: result.recordset[0].baseDatos,
-      versionSQL: result.recordset[0].versionSQL
+    const pool = await obtenerPool();
+    await pool.request().query("SELECT 1 AS conectado");
+
+    return res.status(200).json({
+      ok: true,
+      mensaje: "Conexión a SQL Server correcta"
     });
-  } catch (err) {
-    console.error("[POST SQL]", {
-  code: err.code,
-  message: err.message,
-  originalCode: err.originalError?.code,
-  originalMessage: err.originalError?.message
-});
+  } catch (error) {
+    console.error("[HEALTH DB]", error.message);
 
-    res.status(503).json({
-      estado: "sin conexión a SQL Server",
-      codigo: err.code || err.name
+    return res.status(500).json({
+      ok: false,
+      mensaje: "Sin conexión a SQL Server",
+      codigo: error.code || "DB_ERROR"
     });
   }
 });
 
-
-
+// Recibe el JSON y lo entrega al procedimiento almacenado.
 app.post("/api/v1/asignaciones", async (req, res) => {
-  console.log("[POST] Solicitud recibida");
-
-  const resultado = validarAsignaciones(req.body);
-
-  if (!resultado.valido) {
-    return res.status(422).json({
-      error: "JSON con estructura incorrecta.",
-      detalles: resultado.errores
-    });
-  }
+  console.log("[POST] Solicitud de asignaciones recibida");
 
   try {
-    console.log("[POST] Paso 1: obteniendo conexión SQL");
+    // Autenticación por API Key.
+    const apiKey = req.get("x-api-key");
 
-    const pool = await getPool();
+    if (!apiKey || apiKey !== process.env.API_KEY) {
+      return res.status(401).json({
+        ok: false,
+        mensaje: "API Key inválida o no proporcionada"
+      });
+    }
 
-    console.log("[POST] Paso 2: conexión obtenida");
+    // Comprueba las variables de configuración.
+    const faltantes = validarConfiguracion();
 
-    const contenido = JSON.stringify(req.body);
-    const nombreArchivo = String(
-      req.get("x-filename") || "asignaciones.json"
-    ).slice(0, 255);
+    if (faltantes.length > 0) {
+      return res.status(500).json({
+        ok: false,
+        mensaje: "Faltan variables de entorno",
+        variables: faltantes
+      });
+    }
 
-    console.log("[POST] Paso 3: ejecutando procedimiento");
+    // El archivo del cliente debe contener un arreglo JSON.
+    const registros = req.body;
 
-    const result = await pool.request()
-      .input("NombreArchivo", sql.NVarChar(255), nombreArchivo)
-      .input("ContenidoJSON", sql.NVarChar(sql.MAX), contenido)
-      .input("Valido", sql.Bit, true)
+    if (!Array.isArray(registros)) {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "El body debe ser un arreglo JSON"
+      });
+    }
+
+    if (registros.length === 0) {
+      return res.status(400).json({
+        ok: false,
+        mensaje: "El arreglo JSON no contiene registros"
+      });
+    }
+
+    // Nombre recibido en el encabezado x-filename.
+    const nombreArchivoOriginal =
+      req.get("x-filename") || "asignaciones.json";
+
+    // Evita caracteres de ruta y limita el tamaño del nombre.
+    const nombreArchivo = nombreArchivoOriginal
+      .replace(/\\/g, "/")
+      .split("/")
+      .pop()
+      .slice(0, 255);
+
+    // Serializa el arreglo recibido para enviarlo a SQL Server.
+    const contenidoJSON = JSON.stringify(registros);
+
+    const pool = await obtenerPool();
+
+    const resultado = await pool
+      .request()
       .input(
+        "NombreArchivo",
+        sql.NVarChar(255),
+        nombreArchivo
+      )
+      .input(
+        "ContenidoJSON",
+        sql.NVarChar(sql.MAX),
+        contenidoJSON
+      )
+      .output(
+        "Valido",
+        sql.Bit
+      )
+      .output(
         "Mensaje",
-        sql.NVarChar(1000),
-        "Validación de estructura correcta."
+        sql.NVarChar(1000)
       )
       .execute("dbo.GuardarAsignacionJSON");
 
-    console.log("[POST] Paso 4: guardado correcto");
+    const valido = resultado.output.Valido;
+    const mensaje = resultado.output.Mensaje;
 
-    return res.status(201).json({
-      mensaje: "JSON validado y almacenado.",
-      id: result.recordset?.[0]?.IdRegistro
+    console.log("[SQL] Procedimiento almacenado ejecutado");
+
+    // El procedimiento indica que el contenido no fue aceptado.
+    if (valido !== true && valido !== 1) {
+      return res.status(422).json({
+        ok: false,
+        archivo: nombreArchivo,
+        registrosRecibidos: registros.length,
+        mensaje: mensaje || "SQL Server rechazó el contenido"
+      });
+    }
+
+    // Respuesta exitosa.
+    return res.status(200).json({
+      ok: true,
+      archivo: nombreArchivo,
+      registrosRecibidos: registros.length,
+      mensaje: mensaje || "Archivo procesado correctamente"
     });
 
-  } catch (err) {
-    console.error("[POST ERROR]", {
-      code: err.code,
-      message: err.message,
-      originalCode: err.originalError?.code,
-      originalMessage: err.originalError?.message
-    });
+  } catch (error) {
+    console.error("[ERROR ASIGNACIONES]", error.message);
 
     return res.status(500).json({
-      error: "Error al procesar el JSON",
-      codigo: err.code || err.name
+      ok: false,
+      mensaje: "Error al procesar las asignaciones",
+      codigo: error.code || "INTERNAL_ERROR"
     });
   }
 });
 
+// Manejo de JSON mal formado.
+app.use((error, req, res, next) => {
+  if (
+    error instanceof SyntaxError &&
+    error.status === 400 &&
+    "body" in error
+  ) {
+    return res.status(400).json({
+      ok: false,
+      mensaje: "El body contiene JSON inválido"
+    });
+  }
 
-const port = Number(process.env.PORT || 3000);
+  console.error("[ERROR GENERAL]", error.message);
 
-app.listen(port, "0.0.0.0", () => {
-  console.log(`API iniciada en puerto ${port}`);
+  return res.status(500).json({
+    ok: false,
+    mensaje: "Error interno del servidor"
+  });
+});
+
+// Inicio del servicio.
+app.listen(PORT, () => {
+  console.log(`API escuchando en el puerto ${PORT}`);
 });
