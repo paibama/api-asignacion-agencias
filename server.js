@@ -207,6 +207,7 @@ app.post("/api/v1/asignaciones", async (req, res) => {
     });
 
   
+
 } catch (error) {
   console.error("[ERROR ASIGNACIONES]", {
     message: error.message,
