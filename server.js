@@ -1,14 +1,13 @@
-|  
+
 const express = require("express");
 const sql = require("mssql");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Permite recibir archivos JSON grandes.
 app.use(express.json({ limit: "20mb" }));
 
-// Configuración de SQL Server mediante variables de entorno de Render.
+// Configuración de SQL Server
 const dbConfig = {
   server: process.env.DB_SERVER,
   port: Number(process.env.DB_PORT || 1433),
@@ -18,6 +17,7 @@ const dbConfig = {
 
   connectionTimeout: 30000,
   requestTimeout: 120000,
+
   pool: {
     max: 10,
     min: 0,
@@ -26,12 +26,13 @@ const dbConfig = {
 
   options: {
     encrypt: process.env.DB_ENCRYPT === "true",
-    trustServerCertificate: process.env.DB_TRUST_CERT === "true",
+    trustServerCertificate:
+      process.env.DB_TRUST_CERT === "true",
     enableArithAbort: true
   }
 };
 
-// Pool de conexiones reutilizable.
+// Pool de conexiones
 let poolPromise;
 
 function obtenerPool() {
@@ -47,7 +48,7 @@ function obtenerPool() {
   return poolPromise;
 }
 
-// Verifica que existan las variables esenciales.
+// Validar variables de entorno
 function validarConfiguracion() {
   const requeridas = [
     "DB_SERVER",
@@ -62,7 +63,26 @@ function validarConfiguracion() {
   );
 }
 
-// Ruta de estado de la API.
+// Diagnóstico de errores SQL: únicamente en los logs
+function registrarError(etiqueta, error) {
+  console.error(etiqueta, {
+    message: error.message,
+    code: error.code,
+    number: error.number,
+    state: error.state,
+    class: error.class,
+    lineNumber: error.lineNumber,
+    procedure: error.procName,
+    originalError: error.originalError?.message,
+    precedingErrors: error.precedingErrors?.map((e) => ({
+      message: e.message,
+      number: e.number,
+      state: e.state
+    }))
+  });
+}
+
+// Estado de la API
 app.get("/health", (req, res) => {
   res.status(200).json({
     ok: true,
@@ -71,7 +91,7 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Ruta para comprobar conexión con SQL Server.
+// Comprobar conexión a SQL Server
 app.get("/health/db", async (req, res) => {
   try {
     const faltantes = validarConfiguracion();
@@ -85,29 +105,33 @@ app.get("/health/db", async (req, res) => {
     }
 
     const pool = await obtenerPool();
-    await pool.request().query("SELECT 1 AS conectado");
+
+    await pool.request().query(
+      "SELECT 1 AS conectado"
+    );
 
     return res.status(200).json({
       ok: true,
       mensaje: "Conexión a SQL Server correcta"
     });
+
   } catch (error) {
-    console.error("[HEALTH DB]", {
-  message: error.message,
-  code: error.code,
-  originalError: error.originalError?.message,
-  server: process.env.DB_SERVER,
-  port: process.env.DB_PORT || 1433
-});
+    registrarError("[HEALTH DB]", error);
+
+    return res.status(500).json({
+      ok: false,
+      mensaje: "Sin conexión a SQL Server",
+      codigo: error.code || "DB_ERROR"
+    });
   }
 });
 
-// Recibe el JSON y lo entrega al procedimiento almacenado.
+// Recibir JSON y ejecutar el procedimiento almacenado
 app.post("/api/v1/asignaciones", async (req, res) => {
   console.log("[POST] Solicitud de asignaciones recibida");
 
   try {
-    // Autenticación por API Key.
+    // Validar API Key
     const apiKey = req.get("x-api-key");
 
     if (!apiKey || apiKey !== process.env.API_KEY) {
@@ -117,7 +141,7 @@ app.post("/api/v1/asignaciones", async (req, res) => {
       });
     }
 
-    // Comprueba las variables de configuración.
+    // Validar configuración
     const faltantes = validarConfiguracion();
 
     if (faltantes.length > 0) {
@@ -128,7 +152,7 @@ app.post("/api/v1/asignaciones", async (req, res) => {
       });
     }
 
-    // El archivo del cliente debe contener un arreglo JSON.
+    // El JSON esperado es un arreglo de registros
     const registros = req.body;
 
     if (!Array.isArray(registros)) {
@@ -145,22 +169,27 @@ app.post("/api/v1/asignaciones", async (req, res) => {
       });
     }
 
-    // Nombre recibido en el encabezado x-filename.
+    // Obtener nombre de archivo del encabezado
     const nombreArchivoOriginal =
       req.get("x-filename") || "asignaciones.json";
 
-    // Evita caracteres de ruta y limita el tamaño del nombre.
     const nombreArchivo = nombreArchivoOriginal
       .replace(/\\/g, "/")
       .split("/")
       .pop()
       .slice(0, 255);
 
-    // Serializa el arreglo recibido para enviarlo a SQL Server.
+    // Convertir el arreglo a texto JSON
     const contenidoJSON = JSON.stringify(registros);
 
+    // Conectar a SQL Server
     const pool = await obtenerPool();
 
+    console.log(
+      `[SQL] Enviando ${registros.length} registros al procedimiento`
+    );
+
+    // Ejecutar procedimiento almacenado
     const resultado = await pool
       .request()
       .input(
@@ -186,55 +215,43 @@ app.post("/api/v1/asignaciones", async (req, res) => {
     const valido = resultado.output.Valido;
     const mensaje = resultado.output.Mensaje;
 
-    console.log("[SQL] Procedimiento almacenado ejecutado");
+    console.log("[SQL] Procedimiento ejecutado", {
+      valido,
+      mensaje
+    });
 
-    // El procedimiento indica que el contenido no fue aceptado.
+    // Resultado de validación del procedimiento
     if (valido !== true && valido !== 1) {
       return res.status(422).json({
         ok: false,
         archivo: nombreArchivo,
         registrosRecibidos: registros.length,
-        mensaje: mensaje || "SQL Server rechazó el contenido"
+        mensaje:
+          mensaje || "SQL Server rechazó el contenido"
       });
     }
 
-    // Respuesta exitosa.
+    // Operación exitosa
     return res.status(200).json({
       ok: true,
       archivo: nombreArchivo,
       registrosRecibidos: registros.length,
-      mensaje: mensaje || "Archivo procesado correctamente"
+      mensaje:
+        mensaje || "Archivo procesado correctamente"
     });
 
-  
+  } catch (error) {
+    registrarError("[ERROR ASIGNACIONES]", error);
 
-} catch (error) {
-  console.error("[ERROR ASIGNACIONES]", {
-    message: error.message,
-    code: error.code,
-    number: error.number,
-    state: error.state,
-    class: error.class,
-    lineNumber: error.lineNumber,
-    procedure: error.procName,
-    originalError: error.originalError?.message,
-    precedingErrors: error.precedingErrors?.map(e => ({
-      message: e.message,
-      number: e.number,
-      state: e.state
-    }))
-  });
-
-  return res.status(500).json({
-    ok: false,
-    mensaje: "Error al procesar las asignaciones",
-    codigo: error.code || "INTERNAL_ERROR"
-  });
-}
-
+    return res.status(500).json({
+      ok: false,
+      mensaje: "Error al procesar las asignaciones",
+      codigo: error.code || "INTERNAL_ERROR"
+    });
+  }
 });
 
-// Manejo de JSON mal formado.
+// Manejo de errores de JSON y otras solicitudes
 app.use((error, req, res, next) => {
   if (
     error instanceof SyntaxError &&
@@ -247,6 +264,10 @@ app.use((error, req, res, next) => {
     });
   }
 
+  if (res.headersSent) {
+    return next(error);
+  }
+
   console.error("[ERROR GENERAL]", error.message);
 
   return res.status(500).json({
@@ -255,7 +276,10 @@ app.use((error, req, res, next) => {
   });
 });
 
-// Inicio del servicio.
+// Iniciar servidor
 app.listen(PORT, () => {
   console.log(`API escuchando en el puerto ${PORT}`);
 });
+
+
+
